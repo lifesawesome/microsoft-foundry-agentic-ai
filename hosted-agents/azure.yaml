@@ -28,26 +28,3 @@ services:
                   sku:
                     capacity: 10
                     name: GlobalStandard
-    hosted-agents:
-        project: .
-        host: azure.ai.agent
-        language: docker
-        docker:
-            remoteBuild: true
-        config:
-            container:
-                resources:
-                    cpu: "0.25"
-                    memory: 0.5Gi
-                scale:
-                    maxReplicas: 1
-            deployments:
-                - model:
-                    format: OpenAI
-                    name: gpt-4o
-                    version: "2024-11-20"
-                  name: gpt-4o
-                  sku:
-                    capacity: 122
-                    name: GlobalStandard
-            startupCommand: python main.py

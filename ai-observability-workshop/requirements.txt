@@ -1,0 +1,18 @@
+# AI Observability Workshop - Additional Dependencies
+# Install alongside the root requirements.txt:
+#   pip install -r requirements.txt -r ai-observability-workshop/requirements.txt
+
+# Azure Monitor Query SDK (for KQL queries in notebooks)
+azure-monitor-query>=1.4.0
+
+# Visualization
+matplotlib>=3.9.0
+
+# Already in root requirements.txt (listed for reference):
+# azure-ai-projects>=2.0.1
+# azure-ai-agents>=1.2.0b5
+# azure-monitor-opentelemetry>=1.8.4
+# opentelemetry-api>=1.39.0
+# opentelemetry-sdk>=1.39.0
+# azure-identity>=1.25.1
+# openai>=2.15.0

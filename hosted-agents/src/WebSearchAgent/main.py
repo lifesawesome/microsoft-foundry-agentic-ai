@@ -1,50 +1,43 @@
 import os
 
 from dotenv import load_dotenv
-from agent_framework import ChatAgent, HostedWebSearchTool
-from agent_framework_azure_ai import AzureAIAgentClient
-from azure.ai.agentserver.agentframework import from_agent_framework
-from azure.identity.aio import DefaultAzureCredential
+from agent_framework import Agent
+from agent_framework.foundry import FoundryChatClient
+from agent_framework_foundry_hosting import ResponsesHostServer
+from azure.identity import DefaultAzureCredential
 
 # Load environment variables from .env file for local development
 load_dotenv()
 
 
-def create_agent() -> ChatAgent:
-    """Create and return a ChatAgent with Bing Grounding search tool."""
-    assert "AZURE_AI_PROJECT_ENDPOINT" in os.environ, (
-        "AZURE_AI_PROJECT_ENDPOINT environment variable must be set."
+def create_agent() -> Agent:
+    """Create and return an Agent using the Foundry hosting pattern."""
+    assert "FOUNDRY_PROJECT_ENDPOINT" in os.environ, (
+        "FOUNDRY_PROJECT_ENDPOINT environment variable must be set."
     )
     assert "AZURE_AI_MODEL_DEPLOYMENT_NAME" in os.environ, (
         "AZURE_AI_MODEL_DEPLOYMENT_NAME environment variable must be set."
     )
-    assert "BING_GROUNDING_CONNECTION_ID" in os.environ, (
-        "BING_GROUNDING_CONNECTION_ID environment variable must be set to use HostedWebSearchTool."
-    )
 
-    chat_client = AzureAIAgentClient(
-        project_endpoint=os.environ["AZURE_AI_PROJECT_ENDPOINT"],
+    client = FoundryChatClient(
+        project_endpoint=os.environ["FOUNDRY_PROJECT_ENDPOINT"],
+        model=os.environ["AZURE_AI_MODEL_DEPLOYMENT_NAME"],
         credential=DefaultAzureCredential(),
     )
 
-    bing_search_tool = HostedWebSearchTool(
-        name="Bing Grounding Search",
-        description="Search the web for current information using Bing",
-        connection_id=os.environ["BING_GROUNDING_CONNECTION_ID"],
-    )
-
-    agent = ChatAgent(
-        chat_client=chat_client,
-        name="BingSearchAgent",
+    agent = Agent(
+        client=client,
         instructions=(
             "You are a helpful assistant that can search the web for current information. "
-            "Use the Bing search tool to find up-to-date information and provide accurate, "
+            "Use available tools to find up-to-date information and provide accurate, "
             "well-sourced answers. Always cite your sources when possible."
         ),
-        tools=bing_search_tool,
+        default_options={"store": False},
     )
     return agent
 
 
 if __name__ == "__main__":
-    from_agent_framework(create_agent()).run()
+    agent = create_agent()
+    server = ResponsesHostServer(agent)
+    server.run()

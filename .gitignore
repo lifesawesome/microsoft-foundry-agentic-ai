@@ -261,3 +261,6 @@ logs/
 .cache/
 tmp/
 temp/
+# IDE metadata
+.project
+.settings/

@@ -1,6 +1,6 @@
 # 🚀 Hosted Agents - Web Search Agent Deployment
 
-Deploy a **Web Search Agent** to Microsoft Foundry as a hosted agent. This agent uses Bing Grounding for real-time web search capabilities.
+Deploy a **Web Search Agent** to Microsoft Foundry as a hosted agent using the latest `agent-framework` SDK and `ResponsesHostServer` pattern.
 
 ---
 
@@ -26,9 +26,9 @@ Hosted Agents are containerized AI agents that run as fully managed services in 
 
 ### Included Agent: Web Search Agent
 
-| Agent | Description | Tools |
-|-------|-------------|-------|
-| **Web Search Agent** | Searches the web for real-time information | Bing Grounding |
+| Agent | Description | Protocol |
+|-------|-------------|----------|
+| **Web Search Agent** | Searches the web for real-time information | Responses v1 |
 
 ---
 
@@ -61,7 +61,6 @@ brew tap azure/azd && brew install azd
 
 You need the following resources:
 - Microsoft Foundry Project **(must be in North Central US region)**
-- Bing Grounding Connection (configured in your project)
 - Model Deployment (e.g., `gpt-4o`)
 
 ### Required Environment Variables
@@ -70,7 +69,7 @@ The agent requires these environment variables (set via `azd env set`):
 
 | Variable | Description |
 |----------|-------------|
-| `AI_FOUNDRY_PROJECT_ENDPOINT` | Your Microsoft Foundry project endpoint |
+| `FOUNDRY_PROJECT_ENDPOINT` | Your Microsoft Foundry project endpoint |
 | `AZURE_AI_PROJECT_ID` | Full resource ID of your project |
 | `AZURE_SUBSCRIPTION_ID` | Your Azure subscription ID |
 | `AZURE_RESOURCE_GROUP` | Your resource group name |
@@ -94,7 +93,7 @@ azd env set AZURE_SUBSCRIPTION_ID <your-subscription-id>
 azd env set AZURE_RESOURCE_GROUP <your-resource-group>
 azd env set AZURE_AI_PROJECT_NAME <your-project-name>
 azd env set AZURE_AI_PROJECT_ID "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.CognitiveServices/accounts/<account-name>/projects/<project-name>"
-azd env set AI_FOUNDRY_PROJECT_ENDPOINT "https://<account-name>.services.ai.azure.com/api/projects/<project-name>"
+azd env set FOUNDRY_PROJECT_ENDPOINT "https://<account-name>.services.ai.azure.com/api/projects/<project-name>"
 azd ai agent init
 azd deploy
 ```
@@ -147,7 +146,7 @@ azd env set AZURE_AI_PROJECT_NAME demoproject
 
 # Required for hosted agent deployment
 azd env set AZURE_AI_PROJECT_ID "/subscriptions/93c5449c-bbb2-4249-9461-ddf749e03430/resourceGroups/demoaifoundry/providers/Microsoft.CognitiveServices/accounts/demopocaifoundry/projects/demoproject"
-azd env set AI_FOUNDRY_PROJECT_ENDPOINT "https://demopocaifoundry.services.ai.azure.com/api/projects/demoproject"
+azd env set FOUNDRY_PROJECT_ENDPOINT "https://demopocaifoundry.services.ai.azure.com/api/projects/demoproject"
 ```
 
 > 💡 **Tip:** Replace placeholders with your actual values.
@@ -276,20 +275,14 @@ azd deploy
 
 See: [Hosted Agents Region Availability](https://learn.microsoft.com/en-us/azure/ai-foundry/agents/concepts/hosted-agents?view=foundry&tabs=cli#region-availability)
 
-### Issue: "AI_FOUNDRY_PROJECT_ENDPOINT environment variable is required"
+### Issue: "FOUNDRY_PROJECT_ENDPOINT environment variable is required"
 
 **Cause:** The project endpoint is not set.
 
 **Solution:**
 ```powershell
-azd env set AI_FOUNDRY_PROJECT_ENDPOINT "https://your-foundry.services.ai.azure.com/api/projects/your-project"
+azd env set FOUNDRY_PROJECT_ENDPOINT "https://your-foundry.services.ai.azure.com/api/projects/your-project"
 ```
-
-### Issue: "BING_CONNECTION_ID not set"
-
-**Cause:** The agent can't find the Bing Grounding connection.
-
-**Solution:** The `BING_CONNECTION_ID` environment variable must be set in the `agent.yaml` file. Verify your Bing Grounding connection exists in your AI Foundry project and the connection ID is correct.
 
 ### Issue: "Model not available in selected region"
 
