@@ -48,7 +48,7 @@ This comprehensive workshop transforms you from an AI enthusiast into a Microsof
 ## 📁 Repository Structure
 
 ```
-agentic-ai-immersion-day/
+microsoft-foundry-agentic-ai/
 │
 ├── 🤖 azure-ai-agents/                        # Azure AI Agents SDK
 │   ├── 1-basics.ipynb                         # Agent fundamentals
@@ -67,7 +67,7 @@ agentic-ai-immersion-day/
 │   ├── middleware/                            # 9 interception patterns (1-9)
 │   ├── observability/                         # 3 telemetry notebooks (1-3)
 │   ├── threads/                               # 3 persistence notebooks (1-3)
-│   └── workflows/                             # 9 orchestration notebooks (1-9)
+│   └── workflows/                             # 11 orchestration notebooks (1-11)
 │
 ├── 📊 observability-and-evaluations/          # Evaluation & Security
 │   ├── 1-telemetry.ipynb                      # Azure Monitor telemetry
@@ -123,8 +123,8 @@ For a consistent, pre-configured environment with all dependencies:
 
 ```powershell
 # Clone the repository
-git clone https://github.com/lifesawesome/agentic-ai-immersion.git
-cd agentic-ai-immersion-day
+git clone https://github.com/lifesawesome/microsoft-foundry-agentic-ai.git
+cd microsoft-foundry-agentic-ai
 
 # Verify Python version
 python --version  # Python 3.10+ required
@@ -326,6 +326,8 @@ The **Microsoft Agent Framework** is an open-source SDK that unifies Semantic Ke
 | 7 | [Compliance Review](agent-framework/workflows/7-magentic-compliance-review-with-human-input.ipynb) | Plan Compliance Review | Magentic |
 | 8 | [Research Analysis](agent-framework/workflows/8-magentic-investment-research.ipynb) | Multi-Agent Research | Magentic |
 | 9 | [Reflection Pattern](agent-framework/workflows/9-workflow-as-agent-reflection-pattern.ipynb) | Communication Quality | Reflection |
+| 10 | [Handoff Customer Support](agent-framework/workflows/10-handoff-customer-support.ipynb) | Customer Support Routing | Handoff |
+| 11 | [Group Chat Collaboration](agent-framework/workflows/11-group-chat-collaborative-agents.ipynb) | Collaborative Multi-Agent Discussion | Group Chat |
 
 ### 📊 Phase 3: Observability & Evaluations
 **Location:** `observability-and-evaluations/`
@@ -372,7 +374,7 @@ For 49 real-world FSI use cases (banking, insurance, investment) mapped to each 
 | **Agent Framework GitHub** | [github.com/microsoft/agent-framework](https://github.com/microsoft/agent-framework) |
 | **Azure AI Services** | [learn.microsoft.com/azure/ai-services](https://learn.microsoft.com/azure/ai-services/) |
 | **Video Tutorials** | [AI Show](https://learn.microsoft.com/en-us/shows/ai-show/) |
-| **GitHub Issues** | [Report bugs or request features](https://github.com/dhangerkapil/agentic-ai-immersion/issues) |
+| **GitHub Issues** | [Report bugs or request features](https://github.com/lifesawesome/microsoft-foundry-agentic-ai/issues) |
 
 ---
 
@@ -392,7 +394,7 @@ Please review our [Contributing Guide](CONTRIBUTING.md) for code style, testing 
 ## 📄 License
 
 **License:** MIT License  
-**Repository:** [github.com/dhangerkapil/agentic-ai-immersion](https://github.com/dhangerkapil/agentic-ai-immersion)
+**Repository:** [github.com/lifesawesome/microsoft-foundry-agentic-ai](https://github.com/lifesawesome/microsoft-foundry-agentic-ai)
 
 ---
 
