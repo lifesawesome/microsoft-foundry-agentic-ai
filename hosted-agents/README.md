@@ -1,350 +1,110 @@
-# 🚀 Hosted Agents - Web Search Agent Deployment
+# Hosted Agents — Contoso Assistant (Microsoft Foundry)
 
-Deploy a **Web Search Agent** to Microsoft Foundry as a hosted agent using the latest `agent-framework` SDK and `ResponsesHostServer` pattern.
+A **solid, self-contained** hosted agent you can demo to customers in minutes. It shows
+the thing customers care about most: **tool calling**. The model decides when to call
+local Python functions and grounds its answers in real data instead of guessing — with
+**no Bing, no external APIs, and no extra Azure connections**, so it behaves identically
+on a laptop and in Foundry.
 
----
+Built on the current **Microsoft Agent Framework** (`agent-framework-foundry`) and the
+**Responses** hosting runtime (`ResponsesHostServer`), deployed with `azd ai agent`.
 
-## 📋 Table of Contents
+## What it does (the demo)
 
-- [What are Hosted Agents?](#what-are-hosted-agents)
-- [Prerequisites](#prerequisites)
-- [Deployment Guide](#deployment-guide)
-- [Testing Your Agent](#testing-your-agent)
-- [Troubleshooting](#troubleshooting)
-- [Resource Cleanup](#resource-cleanup)
+The agent (`src/AssistantAgent/main.py`) exposes three tools:
 
----
+| Tool | What it shows the customer |
+|------|----------------------------|
+| `get_weather(location)` | Calling a tool for information the base model can't know |
+| `get_current_time(timezone)` | Grounding in **live** data (real current time) |
+| `search_product_catalog(query)` | Grounding in **enterprise data** (price + stock lookup) |
 
-## 🤖 What are Hosted Agents?
+Great demo prompts (each triggers one or more tool calls):
 
-Hosted Agents are containerized AI agents that run as fully managed services in Microsoft Foundry. You provide the agent code and configuration, and Microsoft Foundry handles:
+- "What's the weather in Seattle and what time is it there right now?"
+- "How much is the Contoso Laptop 16 and is it in stock?"
+- "Compare the two Contoso laptops and tell me which ships today."
 
-- Container building and registry management
-- Deployment and scaling infrastructure
-- Model integration and API endpoints
-- Monitoring and logging
+## Prerequisites
 
-### Included Agent: Web Search Agent
+- **Azure Developer CLI `azd` ≥ 1.27.1** with the `azure.ai.agents` extension ≥ 1.0.0-beta.9.
+  > ⚠️ Older `azd` (e.g. 1.26.0) is **incompatible** with the current agent extensions.
+  > Upgrade first: `winget upgrade Microsoft.Azd` (Windows) or `brew upgrade azd` (macOS),
+  > then `azd extension upgrade --all`.
+- An Azure subscription and `azd auth login`.
+- **Region:** Hosted Agents (preview) run in **North Central US**. `azd provision` below
+  creates a fresh project there, so you don't need an existing one.
 
-| Agent | Description | Protocol |
-|-------|-------------|----------|
-| **Web Search Agent** | Searches the web for real-time information | Responses v1 |
-
----
-
-## ✅ Prerequisites
-
-### ⚠️ Region Availability
-
-**Important:** Hosted Agents is a preview feature currently available in **North Central US only**.
-
-If your AI Foundry project is in a different region, you'll get the error: `"Hosted Agents are not enabled in this region"`. In that case, you need to create a new project in **North Central US**.
-
-Check the latest region support: [Hosted Agents Region Availability](https://learn.microsoft.com/en-us/azure/ai-foundry/agents/concepts/hosted-agents?view=foundry&tabs=cli#region-availability)
-
-### Install Azure Developer CLI (azd)
-
-```powershell
-# Windows
-winget install microsoft.azd
-```
-
-```bash
-# Linux
-curl -fsSL https://aka.ms/install-azd.sh | bash
-
-# MacOS
-brew tap azure/azd && brew install azd
-```
-
-### Required Azure Resources
-
-You need the following resources:
-- Microsoft Foundry Project **(must be in North Central US region)**
-- Model Deployment (e.g., `gpt-4o`)
-
-### Required Environment Variables
-
-The agent requires these environment variables (set via `azd env set`):
-
-| Variable | Description |
-|----------|-------------|
-| `FOUNDRY_PROJECT_ENDPOINT` | Your Microsoft Foundry project endpoint |
-| `AZURE_AI_PROJECT_ID` | Full resource ID of your project |
-| `AZURE_SUBSCRIPTION_ID` | Your Azure subscription ID |
-| `AZURE_RESOURCE_GROUP` | Your resource group name |
-| `AZURE_AI_PROJECT_NAME` | Your AI Foundry project name |
-
----
-
-## 📦 Deployment Guide
-
-### Deploy with Existing Resources
-
-Use this option since you already have a Microsoft Foundry project from the workshop.
-
-#### Quick Command Reference
+## Option A — Deploy to Foundry (recommended)
 
 ```powershell
 cd hosted-agents
 azd auth login
-azd init
-azd env set AZURE_SUBSCRIPTION_ID <your-subscription-id>
-azd env set AZURE_RESOURCE_GROUP <your-resource-group>
-azd env set AZURE_AI_PROJECT_NAME <your-project-name>
-azd env set AZURE_AI_PROJECT_ID "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.CognitiveServices/accounts/<account-name>/projects/<project-name>"
-azd env set FOUNDRY_PROJECT_ENDPOINT "https://<account-name>.services.ai.azure.com/api/projects/<project-name>"
-azd ai agent init
+
+# Create a fresh Foundry project + gpt-4o deployment in North Central US
+azd env new assistant-agent
+azd env set AZURE_LOCATION northcentralus
+azd provision
+
+# Deploy the agent code and smoke-test it
 azd deploy
+azd ai agent invoke "What's the weather in Seattle and how much is the Contoso Mouse?"
 ```
 
----
+`azd ai agent show` prints the status, endpoints, and Playground URL. Open the Playground
+to chat with the agent.
 
-### Detailed Steps
+## Option B — Run locally first (fastest inner loop)
 
-#### Step 1: Navigate to Project Directory
+You still need a Foundry project + model for the LLM calls, and `az login` for
+`DefaultAzureCredential`. After `azd provision` (Option A), grab the values:
 
 ```powershell
-cd hosted-agents
+azd env get-values      # copy FOUNDRY_PROJECT_ENDPOINT and AZURE_AI_MODEL_DEPLOYMENT_NAME
+
+cd src/AssistantAgent
+Copy-Item .env.example .env    # then edit .env with the two values above
+python -m venv .venv; .\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python main.py                  # serves the Responses API on http://localhost:8088
 ```
 
-Verify the structure:
-```powershell
-ls
-# Should show: README.md, azure.yaml, src/
-```
-
-#### Step 2: Sign in to Azure
-
-```powershell
-azd auth login
-```
-
-Your browser will open for authentication. Sign in with your Azure account.
-
-#### Step 3: Initialize azd Environment
+In another terminal:
 
 ```powershell
-azd init
-```
-
-**When prompted:**
-1. Select **"Scan current directory"** (it will detect the `azure.yaml` file)
-2. Enter an environment name (e.g., `websearch-agent-dev`)
-
-This creates a `.azure` folder to store your environment configuration.
-
-#### Step 4: Connect to Your Existing Resources
-
-Set environment variables to point to your Azure resources:
-
-```powershell
-# Basic resource info
-azd env set AZURE_SUBSCRIPTION_ID 93c5449c-bbb2-4249-9461-ddf749e03430
-azd env set AZURE_RESOURCE_GROUP demoaifoundry
-azd env set AZURE_AI_PROJECT_NAME demoproject
-
-# Required for hosted agent deployment
-azd env set AZURE_AI_PROJECT_ID "/subscriptions/93c5449c-bbb2-4249-9461-ddf749e03430/resourceGroups/demoaifoundry/providers/Microsoft.CognitiveServices/accounts/demopocaifoundry/projects/demoproject"
-azd env set FOUNDRY_PROJECT_ENDPOINT "https://demopocaifoundry.services.ai.azure.com/api/projects/demoproject"
-```
-
-> 💡 **Tip:** Replace placeholders with your actual values.
-
-#### Step 5: Initialize the Agent
-
-```powershell
-azd ai agent init
-```
-
-This command detects agents defined in `azure.yaml` and configures them.
-
-**You'll be prompted to configure:**
-
-| Setting | Recommended Value | Description |
-|---------|-------------------|-------------|
-| Model SKU | `GlobalStandard` | Deployment tier |
-| Model deployment | `gpt-4o` | Your existing model |
-| Container memory | `2Gi` | Memory allocation |
-| Container CPU | `1` | CPU cores |
-| Min replicas | `1` | Minimum instances |
-| Max replicas | `3` | Maximum instances |
-
-#### Step 6: Deploy the Agent
-
-```powershell
-azd deploy
-```
-
-**What happens:**
-1. 📦 Builds the agent container image
-2. 🏷️ Pushes to Azure Container Registry
-3. 🚀 Deploys to Microsoft Foundry
-4. ⚙️ Configures environment variables and model access
-
-**Deployment typically takes 5-10 minutes.**
-
-#### Step 7: Verify Deployment
-
-After successful deployment, you'll see:
-
-```
-✅ Agent deployed successfully!
-
-Agent playground URL: https://ai.azure.com/.../playground
-Agent endpoint URL: https://<your-endpoint>/api/...
-```
-
----
-
-## 🧪 Testing Your Agent
-
-### Option 1: Agent Playground (Recommended)
-
-1. Copy the **Agent playground URL** from deployment output
-2. Open in your browser
-3. Start chatting with your agent
-
-**Example queries:**
-- "What are the latest AI news today?"
-- "Search for recent Microsoft announcements"
-- "What's happening in the tech industry this week?"
-
-### Option 2: API Endpoint
-
-```python
-import requests
-
-endpoint = "https://your-agent-endpoint-url"
-headers = {
-    "Content-Type": "application/json",
-    "api-key": "your-api-key"
-}
-
-payload = {
-    "messages": [
-        {"role": "user", "content": "What are the latest AI trends?"}
-    ]
-}
-
-response = requests.post(endpoint, json=payload, headers=headers)
-print(response.json())
-```
-
-### Option 3: Using curl
-
-```powershell
-curl -X POST "https://your-agent-endpoint/responses" `
+curl -X POST http://localhost:8088/responses `
   -H "Content-Type: application/json" `
-  -d '{"input": "What are the latest AI trends?", "stream": false}'
+  -d '{"input": "What time is it in Tokyo and is the Contoso Monitor 27 in stock?"}'
 ```
 
----
+## Customize it
 
-## 🔧 Troubleshooting
+- **Change the behavior:** edit the `instructions` in [src/AssistantAgent/main.py](src/AssistantAgent/main.py).
+- **Add a tool:** write a function, decorate it with `@tool(...)`, and add it to the
+  `tools=[...]` list. That's the whole extension model.
+- **Swap the model:** edit `services.ai-project.deployments[]` in [azure.yaml](azure.yaml)
+  before `azd provision`.
+- **Real web search:** add a *Grounding with Bing Search* connection to the project and a
+  Bing tool — kept out of this sample on purpose so the demo needs zero setup.
 
-### Issue: "no project exists; run `azd init`"
-
-**Cause:** You haven't initialized the azd project yet.
-
-**Solution:**
-```powershell
-azd init
-# Select "Scan current directory"
-# Enter an environment name
-```
-
-### Issue: "infrastructure has not been provisioned"
-
-**Cause:** When using existing resources, this error can sometimes appear.
-
-**Solution:** The `azd ai agent init` command should handle this. If it persists, try:
-```powershell
-azd env set AZURE_RESOURCE_GROUP <your-resource-group>
-azd ai agent init
-azd deploy
-```
-
-### Issue: "Hosted Agents are not enabled in this region"
-
-**Cause:** Your AI Foundry project is in a region that doesn't support hosted agents.
-
-**Solution:** Currently, hosted agents are only available in **North Central US**. You need to:
-1. Create a new AI Foundry project in North Central US
-2. Update your environment variables to point to the new project
-
-See: [Hosted Agents Region Availability](https://learn.microsoft.com/en-us/azure/ai-foundry/agents/concepts/hosted-agents?view=foundry&tabs=cli#region-availability)
-
-### Issue: "FOUNDRY_PROJECT_ENDPOINT environment variable is required"
-
-**Cause:** The project endpoint is not set.
-
-**Solution:**
-```powershell
-azd env set FOUNDRY_PROJECT_ENDPOINT "https://your-foundry.services.ai.azure.com/api/projects/your-project"
-```
-
-### Issue: "Model not available in selected region"
-
-**Solution:** Check [model region availability](https://learn.microsoft.com/azure/ai-foundry/agents/concepts/model-region-support).
-
-### Issue: "Agent container failed to start"
-
-**Solution:**
-1. Check container logs in Azure Portal
-2. Verify `requirements.txt` has all dependencies
-3. Ensure sufficient memory/CPU allocated
-
-### Verify Environment Variables
-
-```powershell
-azd env get-values
-```
-
----
-
-## 🗑️ Resource Cleanup
-
-To avoid unnecessary charges:
+## Cleanup
 
 ```powershell
 azd down
 ```
 
-This removes deployed agent containers and associated resources.
-
-> ⚠️ This does NOT delete your AI Foundry project or pre-existing resources.
-
----
-
-## 📁 Folder Structure
+## Project structure
 
 ```
 hosted-agents/
-├── .azure/             # azd environment config (created after azd init)
-├── README.md           # This guide
-├── azure.yaml          # azd project configuration
-└── src/
-    └── WebSearchAgent/
-        ├── main.py           # Agent implementation
-        ├── agent.yaml        # Agent configuration
-        ├── Dockerfile        # Container definition
-        └── requirements.txt  # Python dependencies
+├── azure.yaml                 # azd project: ai-project (model) + AssistantAgent (agent), code-deploy
+└── src/AssistantAgent/
+    ├── main.py                # Agent + 3 @tool functions + ResponsesHostServer
+    ├── requirements.txt       # agent-framework-foundry + hosting runtime
+    ├── .env.example           # local-run env template
+    └── .agentignore           # excludes .venv/.env from the deployed zip
 ```
 
----
-
-## 📚 Additional Resources
-
-- [Azure Developer CLI Documentation](https://aka.ms/azd)
-- [Hosted Agents Documentation](https://aka.ms/azdaiagent/docs)
-- [Microsoft Foundry Documentation](https://learn.microsoft.com/azure/ai-foundry/)
-- [Agent Framework GitHub](https://github.com/microsoft/agent-framework)
-
----
-
-## ⚠️ Important Notice
-
-This template is for **learning and development purposes**. For production:
-- Implement additional security measures
-- Follow [Microsoft Foundry security best practices](https://learn.microsoft.com/azure/ai-foundry/)
+> The old `WebSearchAgent` example was removed: it claimed to search the web but had **no
+> web-search tool**, and used outdated `agent-framework` packages. This replacement is a
+> working, tool-enabled agent on current libraries.

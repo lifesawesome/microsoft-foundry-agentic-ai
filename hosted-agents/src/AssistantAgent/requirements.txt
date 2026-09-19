@@ -1,0 +1,7 @@
+# Microsoft Agent Framework — Foundry chat client + hosting runtime (Responses protocol).
+agent-framework-foundry
+agent-framework-foundry-hosting>=1.0.0b260813
+
+# Direct imports used by main.py (also pulled in transitively; pinned here for clarity).
+azure-identity
+python-dotenv
