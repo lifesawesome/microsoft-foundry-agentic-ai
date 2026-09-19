@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Multi-Agent Chat Widget — Demo</title>
+    <link rel="stylesheet" href="widget.css" />
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #faf9f8;
+        font-family: "Segoe UI", system-ui, sans-serif;
+      }
+      .demo-shell {
+        max-width: 420px;
+        margin: 0 auto;
+        height: 560px;
+      }
+      h1 {
+        max-width: 420px;
+        margin: 0 auto 12px;
+        font-size: 18px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Multi-Agent Assistant</h1>
+    <div class="demo-shell" id="chat"></div>
+
+    <script src="widget.js"></script>
+    <script>
+      // For local dev the gateway runs on :8080. In production, serve this widget from an
+      // origin that is reverse-proxy authenticated so the identity header is injected.
+      MultiAgentChat.mount({
+        mount: document.getElementById("chat"),
+        gatewayUrl: window.GATEWAY_URL || "http://localhost:8080",
+        getHeaders: function () {
+          // Local dev only: simulate an authenticated principal. Remove in production;
+          // the reverse proxy / App Service auth injects the real identity header.
+          return { "X-MS-CLIENT-PRINCIPAL-NAME": "demo-user" };
+        },
+      });
+    </script>
+  </body>
+</html>

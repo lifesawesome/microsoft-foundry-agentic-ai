@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+# Both services build from the solution root so the shared `src/agent_platform` library is
+# included in each image; each service selects a different Dockerfile.
+name: multi-agent-platform
+services:
+    gateway:
+        project: .
+        host: containerapp
+        language: docker
+        docker:
+            path: apps/gateway/Dockerfile
+            remoteBuild: true
+        config:
+            container:
+                resources:
+                    cpu: "1"
+                    memory: 2Gi
+                scale:
+                    minReplicas: 1
+                    maxReplicas: 5
+    orchestrator:
+        project: .
+        host: containerapp
+        language: docker
+        docker:
+            path: apps/orchestrator/Dockerfile
+            remoteBuild: true
+        config:
+            container:
+                resources:
+                    cpu: "1"
+                    memory: 2Gi
+                scale:
+                    minReplicas: 1
+                    maxReplicas: 3

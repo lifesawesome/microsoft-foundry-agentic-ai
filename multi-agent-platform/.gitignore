@@ -1,0 +1,12 @@
+# Python build/test artifacts
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+build/
+dist/
+
+# Local environment
+.env
+.venv/
