@@ -1,4 +1,0 @@
-agent-framework
-agent-framework-foundry-hosting
-python-dotenv
-azure-identity

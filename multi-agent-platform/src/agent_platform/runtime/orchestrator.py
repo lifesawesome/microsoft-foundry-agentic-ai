@@ -1,7 +1,9 @@
 """The streaming orchestrator.
 
-Coordinates the specialists for a single turn and yields channel-neutral `StreamEvent`s.
-Enforces a per-request timeout, supports cancellation, requires non-empty grounded output,
+Drives the Agent Framework turn workflow for a single user turn and yields channel-neutral
+`StreamEvent`s. The workflow runs as a task while its executors push events onto a queue
+through the turn's `emit` callback; the orchestrator drains that queue in real time. It
+enforces a per-request timeout, supports cancellation, requires non-empty grounded output,
 and maps failures to structured platform errors.
 """
 
@@ -13,16 +15,27 @@ from typing import AsyncIterator
 from agent_platform.contracts.errors import ErrorCode, PlatformError, PlatformException
 from agent_platform.contracts.messages import Message, Role
 from agent_platform.contracts.sessions import SessionRef
-from agent_platform.contracts.streaming import AgentActivity, StreamEvent
+from agent_platform.contracts.streaming import StreamEvent
+from agent_platform.interfaces.identity import DelegatedIdentityProvider
 from agent_platform.interfaces.knowledge import KnowledgeProvider
 from agent_platform.interfaces.sessions import SessionStore
-from agent_platform.runtime.model import ChatModel, ModelMessage
+from agent_platform.interfaces.tools import ToolProvider
+from agent_platform.runtime.model import ChatModel
 from agent_platform.runtime.specialists import (
+    ActionSpecialist,
     KnowledgeSpecialist,
     ResponseSpecialist,
     RouterSpecialist,
 )
 from agent_platform.runtime.telemetry import new_correlation_id, span
+from agent_platform.runtime.workflow import (
+    ActionExecutor,
+    KnowledgeExecutor,
+    ResponseExecutor,
+    RouterExecutor,
+    TurnContext,
+    build_turn_workflow,
+)
 
 
 class Orchestrator:
@@ -34,16 +47,35 @@ class Orchestrator:
         model: ChatModel,
         knowledge: KnowledgeProvider,
         sessions: SessionStore,
+        tools: ToolProvider | None = None,
+        identity: DelegatedIdentityProvider | None = None,
         request_timeout_seconds: float = 60.0,
         max_history: int = 20,
     ) -> None:
-        self._model = model
         self._sessions = sessions
-        self._router = RouterSpecialist()
-        self._knowledge = KnowledgeSpecialist(knowledge)
-        self._response = ResponseSpecialist()
         self._timeout = request_timeout_seconds
-        self._max_history = max_history
+
+        response = ResponseSpecialist()
+        action_specialist = (
+            ActionSpecialist(tools, identity) if tools is not None else None
+        )
+        router_exec = RouterExecutor(
+            RouterSpecialist(), action=action_specialist, id="router"
+        )
+        knowledge_exec = KnowledgeExecutor(
+            KnowledgeSpecialist(knowledge), response, id="knowledge"
+        )
+        response_exec = ResponseExecutor(
+            model, response, sessions, max_history, id="response"
+        )
+        action_exec = (
+            ActionExecutor(action_specialist, response, id="action")
+            if action_specialist is not None
+            else None
+        )
+        self._workflow = build_turn_workflow(
+            router_exec, knowledge_exec, response_exec, action_exec
+        )
 
     async def run(
         self,
@@ -100,36 +132,45 @@ class Orchestrator:
                 session.session_id, Message(role=Role.USER, content=text)
             )
 
-            context: str | None = None
-            citations: tuple = ()
-            if self._router.needs_knowledge(text):
-                yield StreamEvent.agent_activity(
-                    AgentActivity(agent="knowledge", action="retrieving")
-                )
-                with span("knowledge.retrieve", correlation_id=correlation_id):
-                    result = await self._knowledge.gather(text, session.principal_id)
-                context = result.content or None
-                citations = self._response.merge_citations(result.citations)
-                if citations:
-                    yield StreamEvent.with_citations(citations)
+            queue: asyncio.Queue[StreamEvent | object] = asyncio.Queue()
+            done = object()
 
-            yield StreamEvent.agent_activity(
-                AgentActivity(agent="response", action="generating")
+            async def emit(event: StreamEvent) -> None:
+                await queue.put(event)
+
+            turn = TurnContext(
+                text=text,
+                principal_id=session.principal_id,
+                session_id=session.session_id,
+                correlation_id=correlation_id,
+                emit=emit,
             )
-            instructions = self._response.build_instructions(context)
-            history = await self._sessions.history(session.session_id)
-            messages = _to_model_messages(history, self._max_history)
 
-            collected: list[str] = []
-            with span("response.stream", correlation_id=correlation_id):
-                async for delta in self._model.stream(
-                    messages, instructions=instructions
-                ):
-                    if delta:
-                        collected.append(delta)
-                        yield StreamEvent.text_delta(delta)
+            workflow_task = asyncio.create_task(self._workflow.run(turn))
 
-            answer = "".join(collected).strip()
+            async def pump() -> None:
+                try:
+                    await workflow_task
+                except BaseException:  # noqa: BLE001 - re-raised via workflow_task below
+                    pass
+                finally:
+                    await queue.put(done)
+
+            pump_task = asyncio.create_task(pump())
+            try:
+                while True:
+                    item = await queue.get()
+                    if item is done:
+                        break
+                    assert isinstance(item, StreamEvent)
+                    yield item
+                await workflow_task  # surface any workflow error to the outer handler
+            finally:
+                for task in (workflow_task, pump_task):
+                    if not task.done():
+                        task.cancel()
+
+            answer = turn.answer.strip()
             if not answer:
                 raise PlatformException.of(
                     ErrorCode.UPSTREAM_UNAVAILABLE,
@@ -138,18 +179,9 @@ class Orchestrator:
 
             await self._sessions.append(
                 session.session_id,
-                Message(role=Role.ASSISTANT, content=answer, citations=citations),
+                Message(role=Role.ASSISTANT, content=answer, citations=turn.citations),
             )
             yield StreamEvent.completed()
-
-
-def _to_model_messages(
-    history: tuple[Message, ...], max_history: int
-) -> tuple[ModelMessage, ...]:
-    recent = history[-max_history:]
-    return tuple(
-        ModelMessage(role=message.role, content=message.content) for message in recent
-    )
 
 
 async def _with_timeout(
