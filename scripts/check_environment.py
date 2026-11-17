@@ -22,6 +22,57 @@ def parse_cell(source):
     return ast.parse(masked)
 
 
+def clean_notebook_setup(source):
+    tree = parse_cell(source)
+    removed_lines = set()
+    for node in tree.body:
+        remove = False
+        if isinstance(node, ast.Assert) and isinstance(node.msg, ast.Constant):
+            remove = node.msg.value in {
+                "Select the pinned project kernel.",
+                "Select the repository .venv kernel.",
+            }
+        elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
+            call = node.value
+            if isinstance(call.func, ast.Name):
+                if call.func.id == "report_notebook_runtime":
+                    remove = True
+                elif call.func.id == "print":
+                    remove = any(
+                        isinstance(part, ast.Attribute)
+                        and isinstance(part.value, ast.Name)
+                        and part.value.id == "sys"
+                        and part.attr in {"executable", "version"}
+                        or isinstance(part, ast.Call)
+                        and isinstance(part.func, ast.Name)
+                        and part.func.id == "version"
+                        for part in ast.walk(call)
+                    )
+        elif isinstance(node, ast.ImportFrom):
+            remove = node.module == "scripts.check_environment" and all(
+                alias.name == "report_notebook_runtime" for alias in node.names
+            )
+        if remove:
+            removed_lines.update(range(node.lineno - 1, node.end_lineno))
+    if not removed_lines:
+        return source
+    lines = source.splitlines(keepends=True)
+    result = "".join(line for index, line in enumerate(lines) if index not in removed_lines)
+    remaining = parse_cell(result)
+    if not any(isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id == "version" for node in ast.walk(remaining)):
+        unused = {
+            index
+            for node in remaining.body
+            if isinstance(node, ast.ImportFrom) and node.module == "importlib.metadata"
+            and len(node.names) == 1 and node.names[0].name == "version"
+            for index in range(node.lineno - 1, node.end_lineno)
+        }
+        result = "".join(line for index, line in enumerate(result.splitlines(keepends=True)) if index not in unused)
+    while "\n\n\n" in result:
+        result = result.replace("\n\n\n", "\n\n")
+    return result
+
+
 def dotenv_calls(tree):
     return [
         node
@@ -123,15 +174,19 @@ def check_notebooks(fix=False):
                 if cell["cell_type"] != "code":
                     continue
                 source = "".join(cell["source"])
-                if "load_dotenv(" not in source:
+                cleaned = clean_notebook_setup(source)
+                if "load_dotenv(" not in source and source == cleaned:
                     continue
-                migrated = migrate_source(source)
+                migrated = migrate_source(cleaned)
                 metadata = cell.get("metadata", {})
                 if fix and (
                     source != migrated
                     or not metadata.get("id")
                     or metadata.get("language") != "python"
                 ):
+                    if source != migrated:
+                        cell["outputs"] = []
+                        cell["execution_count"] = None
                     cell["source"] = migrated.splitlines(keepends=True)
                     cell.setdefault("metadata", {})["language"] = "python"
                     cell["metadata"].setdefault(
@@ -143,12 +198,14 @@ def check_notebooks(fix=False):
                     )
                     modified = True
                     source = migrated
-                if migrate_source(source) != source:
+                if migrate_source(clean_notebook_setup(source)) != source:
                     raise ValueError(
-                        f"Legacy dotenv path: {path.relative_to(ROOT)} cell {index + 1}"
+                        f"Noisy setup or legacy dotenv path: {path.relative_to(ROOT)} cell {index + 1}"
                     )
                 tree = parse_cell(source)
                 calls = dotenv_calls(tree)
+                if not calls:
+                    continue
                 for directory in (ROOT, path.parent):
                     with (
                         working_directory(directory),
