@@ -176,8 +176,8 @@ python scripts/check_environment.py
 ```
 
 Hosted deployments use a separate azd environment; follow the
-[hosted-agent setup](hosted-agents/README.md#step-4-connect-to-your-existing-resources)
-to synchronize its values from the same root file. BYOM additionally needs a real
+[hosted-agent setup](hosted-agents/README.md#shared-configuration)
+for the distinction between local shared settings and deployment settings. BYOM additionally needs a real
 `FOUNDRY_MODEL_DEPLOYMENT_NAME` in `connection/model` format; the shared Azure
 deployment name is not a substitute.
 

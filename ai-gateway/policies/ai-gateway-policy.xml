@@ -1,0 +1,42 @@
+<policies>
+    <inbound>
+        <base />
+        <!-- Client authenticates to the gateway with the api-key subscription header.
+             Remove it before forwarding so it never reaches Foundry. -->
+        <set-header name="api-key" exists-action="delete" />
+        <!-- Gateway authenticates to Foundry with its own managed identity (Entra ID). -->
+        <authentication-managed-identity resource="https://cognitiveservices.azure.com" output-token-variable-name="msi-access-token" ignore-error="false" />
+        <set-header name="Authorization" exists-action="override">
+            <value>@("Bearer " + (string)context.Variables["msi-access-token"])</value>
+        </set-header>
+        <!-- 1) SEMANTIC CACHING: return a cached answer for semantically similar prompts.
+             score-threshold is a DISTANCE (0.0-1.0): lower = stricter. >0.2 risks false matches. -->
+        <azure-openai-semantic-cache-lookup score-threshold="__SCORE__" embeddings-backend-id="embeddings-backend" embeddings-backend-auth="system-assigned" ignore-system-messages="true" max-message-count="10">
+            <vary-by>@(context.Subscription.Id)</vary-by>
+            <vary-by>@(context.Request.Headers.GetValueOrDefault("x-cache-bucket", "default"))</vary-by>
+        </azure-openai-semantic-cache-lookup>
+        <!-- 2) TOKEN LIMITING & QUOTA:
+             - tokens-per-minute meters usage and emits consumed/remaining headers.
+             - token-quota is a HARD cumulative cap (no refill) that returns 403 when exceeded.
+             counter-key includes x-cache-bucket so each demo run gets a fresh, isolated budget. -->
+        <azure-openai-token-limit tokens-per-minute="__TPM__" token-quota="1500" token-quota-period="Hourly" counter-key="@(context.Subscription.Id + &quot;|&quot; + context.Request.Headers.GetValueOrDefault(&quot;x-cache-bucket&quot;,&quot;default&quot;))" estimate-prompt-tokens="false" tokens-consumed-header-name="x-tokens-consumed" remaining-tokens-header-name="x-tokens-remaining" remaining-quota-tokens-header-name="x-quota-remaining" retry-after-header-name="Retry-After" />
+        <!-- 3) TOKEN METRICS: emit prompt/completion/total tokens to Azure Monitor. -->
+        <azure-openai-emit-token-metric namespace="ai-gateway">
+            <dimension name="Subscription ID" value="@(context.Subscription.Id)" />
+            <dimension name="Client IP" value="@(context.Request.IpAddress)" />
+            <dimension name="API" value="@(context.Api.Name)" />
+        </azure-openai-emit-token-metric>
+        <set-backend-service backend-id="openai-backend" />
+    </inbound>
+    <backend>
+        <forward-request timeout="120" />
+    </backend>
+    <outbound>
+        <base />
+        <!-- Store the response so future semantically similar prompts are served from cache. -->
+        <azure-openai-semantic-cache-store duration="120" />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

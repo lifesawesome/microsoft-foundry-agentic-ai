@@ -32,9 +32,40 @@ def dotenv_calls(tree):
     ]
 
 
+def environment_path_kind(argument, tree):
+    discovery = ast.parse("find_dotenv(usecwd=True)", mode="eval").body
+    if ast.dump(argument) == ast.dump(discovery):
+        return "discovery"
+    assignments = {
+        target.id: node.value
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        for target in node.targets
+        if isinstance(target, ast.Name)
+    }
+    if isinstance(argument, ast.Name):
+        value = assignments.get(argument.id)
+        if value is not None and ast.dump(value) == ast.dump(discovery):
+            return "discovery"
+    root_path = ast.parse("repo_root / '.env'", mode="eval").body
+    if ast.dump(argument) == ast.dump(root_path) and "repo_root" in assignments:
+        for variable in ("p", "path"):
+            resolver = ast.parse(
+                f"next({variable} for {variable} in (Path.cwd(), *Path.cwd().parents) "
+                f"if ({variable} / 'requirements.in').is_file())",
+                mode="eval",
+            ).body
+            if ast.dump(assignments["repo_root"]) == ast.dump(resolver):
+                return "root"
+    return None
+
+
 def migrate_source(source):
     tree = parse_cell(source)
-    calls = dotenv_calls(tree)
+    calls = [
+        call for call in dotenv_calls(tree)
+        if not call.args or environment_path_kind(call.args[0], tree) is None
+    ]
     if not calls:
         return source
     lines = source.splitlines(keepends=True)
@@ -116,7 +147,8 @@ def check_notebooks(fix=False):
                     raise ValueError(
                         f"Legacy dotenv path: {path.relative_to(ROOT)} cell {index + 1}"
                     )
-                calls = dotenv_calls(parse_cell(source))
+                tree = parse_cell(source)
+                calls = dotenv_calls(tree)
                 for directory in (ROOT, path.parent):
                     with (
                         working_directory(directory),
@@ -131,7 +163,20 @@ def check_notebooks(fix=False):
                                 keyword.arg: ast.literal_eval(keyword.value)
                                 for keyword in call.keywords
                             }
-                            load_dotenv(find_dotenv(usecwd=True), **options)
+                            kind = environment_path_kind(call.args[0], tree)
+                            if kind == "root":
+                                root = next(
+                                    parent for parent in (Path.cwd(), *Path.cwd().parents)
+                                    if (parent / "requirements.in").is_file()
+                                )
+                                env_path = root / ".env"
+                            elif kind == "discovery":
+                                env_path = Path(find_dotenv(usecwd=True))
+                            else:
+                                raise ValueError(f"Unsupported dotenv path: {path.relative_to(ROOT)}")
+                            if env_path != ROOT / ".env":
+                                raise ValueError(f"Unexpected dotenv path: {env_path}")
+                            load_dotenv(env_path, **options)
                         if (
                             os.environ.get("AI_FOUNDRY_PROJECT_ENDPOINT")
                             != dotenv_values(ROOT / ".env")[
