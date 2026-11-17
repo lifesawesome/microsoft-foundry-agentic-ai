@@ -65,7 +65,9 @@ You need the following resources:
 
 ### Required Environment Variables
 
-The agent requires these environment variables (set via `azd env set`):
+For local runs, the agent automatically loads the repository-root `.env`. For a
+deployment, synchronize the following values into the selected azd environment as
+shown in Step 4; do not maintain a second handwritten environment file:
 
 | Variable | Description |
 |----------|-------------|
@@ -74,6 +76,7 @@ The agent requires these environment variables (set via `azd env set`):
 | `AZURE_SUBSCRIPTION_ID` | Your Azure subscription ID |
 | `AZURE_RESOURCE_GROUP` | Your resource group name |
 | `AZURE_AI_PROJECT_NAME` | Your AI Foundry project name |
+| `AZURE_AI_MODEL_DEPLOYMENT_NAME` | Your existing model deployment, shared with the notebooks |
 
 ---
 
@@ -89,11 +92,7 @@ Use this option since you already have a Microsoft Foundry project from the work
 cd hosted-agents
 azd auth login
 azd init
-azd env set AZURE_SUBSCRIPTION_ID <your-subscription-id>
-azd env set AZURE_RESOURCE_GROUP <your-resource-group>
-azd env set AZURE_AI_PROJECT_NAME <your-project-name>
-azd env set AZURE_AI_PROJECT_ID "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.CognitiveServices/accounts/<account-name>/projects/<project-name>"
-azd env set FOUNDRY_PROJECT_ENDPOINT "https://<account-name>.services.ai.azure.com/api/projects/<project-name>"
+# Synchronize the shared root .env using the Step 4 commands below.
 azd ai agent init
 azd deploy
 ```
@@ -136,20 +135,29 @@ This creates a `.azure` folder to store your environment configuration.
 
 #### Step 4: Connect to Your Existing Resources
 
-Set environment variables to point to your Azure resources:
+Read the shared root file, with dotenv interpolation, and synchronize only the
+nonsecret deployment settings into the currently selected azd environment:
 
 ```powershell
-# Basic resource info
-azd env set AZURE_SUBSCRIPTION_ID 93c5449c-bbb2-4249-9461-ddf749e03430
-azd env set AZURE_RESOURCE_GROUP demoaifoundry
-azd env set AZURE_AI_PROJECT_NAME demoproject
-
-# Required for hosted agent deployment
-azd env set AZURE_AI_PROJECT_ID "/subscriptions/93c5449c-bbb2-4249-9461-ddf749e03430/resourceGroups/demoaifoundry/providers/Microsoft.CognitiveServices/accounts/demopocaifoundry/projects/demoproject"
-azd env set FOUNDRY_PROJECT_ENDPOINT "https://demopocaifoundry.services.ai.azure.com/api/projects/demoproject"
+$names = @(
+    'AZURE_TENANT_ID', 'AZURE_SUBSCRIPTION_ID', 'AZURE_RESOURCE_GROUP',
+    'AZURE_AI_ACCOUNT_NAME', 'AZURE_AI_PROJECT_NAME', 'AZURE_AI_PROJECT_ID',
+    'FOUNDRY_PROJECT_ENDPOINT', 'AZURE_AI_MODEL_DEPLOYMENT_NAME'
+)
+$shared = python -c "import json; from dotenv import dotenv_values; values = dotenv_values('../.env'); names = ['AZURE_TENANT_ID', 'AZURE_SUBSCRIPTION_ID', 'AZURE_RESOURCE_GROUP', 'AZURE_AI_ACCOUNT_NAME', 'AZURE_AI_PROJECT_NAME', 'AZURE_AI_PROJECT_ID', 'FOUNDRY_PROJECT_ENDPOINT', 'AZURE_AI_MODEL_DEPLOYMENT_NAME']; print(json.dumps({name: values[name] for name in names}))" | ConvertFrom-Json
+foreach ($name in $names) {
+    if (-not $shared.$name) { throw "Missing shared setting: $name" }
+    azd env set $name $shared.$name
+    if ($LASTEXITCODE -ne 0) { throw "Failed to synchronize: $name" }
+}
+azd env set AZURE_AI_PROJECT_ENDPOINT $shared.FOUNDRY_PROJECT_ENDPOINT
 ```
 
-> 💡 **Tip:** Replace placeholders with your actual values.
+Run this again after changing the root configuration. Process variables supplied
+by azd or the hosted runtime take precedence over local dotenv values. The manifest
+uses the configured model deployment; this sample does not request another hardcoded
+`gpt-4o` deployment. No deployment or Azure resource changes are performed by loading
+the root file.
 
 #### Step 5: Initialize the Agent
 

@@ -19,12 +19,3 @@ services:
                 scale:
                     maxReplicas: 3
                     minReplicas: 1
-            deployments:
-                - model:
-                    format: OpenAI
-                    name: gpt-4o
-                    version: "2024-08-06"
-                  name: gpt-4o
-                  sku:
-                    capacity: 10
-                    name: GlobalStandard

@@ -37,6 +37,7 @@ This comprehensive workshop transforms you from an AI enthusiast into a Microsof
 | **Advanced** | MCP Integration, Red Teaming, Agent Framework | Foundry MCP Server, Microsoft Agent Framework |
 | **Operations** | Observability, Evaluation, Fine-Tuning | OpenTelemetry, Azure Monitor, Built-in Evaluators |
 | **Deployment** | Hosted Agents with Azure Developer CLI | Azure Developer CLI (azd), Hosted Agents |
+| **[BYOM](byom/README.md)** | External models through an AI gateway | Agents v2, API Management, function calling, end-to-end testing |
 | **Enterprise** | Responsible AI | Red Team Testing, Content Safety |
 
 > **🎓 Format**: Intensive hands-on experience  
@@ -143,19 +144,42 @@ pip install -r requirements.txt
 
 #### Step 3: Configure Environment Variables
 
-1. Copy `.env.example` to `.env`
-2. Update with your Azure resources:
+1. Use one [root .env](.env) for every local sample, based on [.env.example](.env.example).
+2. Set your existing resources once. Project aliases and resource IDs are derived automatically:
 
 ```env
-# Required
-AI_FOUNDRY_PROJECT_ENDPOINT=https://your-project.services.ai.azure.com
-AZURE_OPENAI_API_KEY=your-api-key
-AZURE_AI_MODEL_DEPLOYMENT_NAME=gpt-4o
-
-# Optional (for specific notebooks)
-BING_CONNECTION_ID=/subscriptions/.../connections/bing
-AZURE_AI_SEARCH_ENDPOINT=https://your-search.search.windows.net
+AZURE_TENANT_ID=<your-tenant-id>
+AZURE_SUBSCRIPTION_ID=<your-subscription-id>
+AZURE_RESOURCE_GROUP=<your-resource-group>
+AZURE_AI_ACCOUNT_NAME=<your-foundry-account>
+AZURE_AI_PROJECT_NAME=<your-project-name>
+AZURE_AI_MODEL_DEPLOYMENT_NAME=gpt-4.1
+EMBEDDING_MODEL_DEPLOYMENT_NAME=text-embedding-3-large
 ```
+
+The root file is ignored by Git. Notebooks discover it upward from their working
+directory; BYOM uses its repository-root path even when started elsewhere. Do not
+create per-folder copies. After editing configuration, restart notebook kernels
+and rerun setup cells so previously loaded values cannot linger.
+
+Authentication uses Microsoft Entra ID; API keys are not required for the normal
+agent and Search flows. Sign in to the tenant and select the subscription configured
+in the root file. Some notebooks use browser credentials and others use Azure CLI.
+The red-team notebook's direct-model example still requires an optional
+`AZURE_OPENAI_API_KEY`; leave that setting absent unless running that example.
+Telemetry demonstrations can explicitly enable content recording, so use synthetic data.
+
+Run the local configuration check without any Azure requests:
+
+```powershell
+python scripts/check_environment.py
+```
+
+Hosted deployments use a separate azd environment; follow the
+[hosted-agent setup](hosted-agents/README.md#step-4-connect-to-your-existing-resources)
+to synchronize its values from the same root file. BYOM additionally needs a real
+`FOUNDRY_MODEL_DEPLOYMENT_NAME` in `connection/model` format; the shared Azure
+deployment name is not a substitute.
 
 ### Step 4: Microsoft Foundry Setup
 

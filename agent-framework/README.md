@@ -34,11 +34,15 @@ All notebooks feature **business use cases** including application processing, c
 
 1. **Install packages** — Install the preview roll-up package or specific integrations as needed.
 
-2. **Configure environment variables** — Copy `.env.example` to `.env` and update with your Azure resources:
+2. **Configure environment variables** — Use the repository's single [root .env](../.env), based on [.env.example](../.env.example):
    - `AI_FOUNDRY_PROJECT_ENDPOINT` — Your Microsoft Foundry project endpoint
    - `AZURE_OPENAI_ENDPOINT` — Your Azure OpenAI endpoint
-   - `AZURE_OPENAI_CHAT_DEPLOYMENT_NAME` — Model deployment name (e.g., gpt-4o)
-   - Additional variables as needed: `BING_CONNECTION_ID`, `AZURE_AI_SEARCH_ENDPOINT`, Redis connection strings
+   - `AZURE_AI_MODEL_DEPLOYMENT_NAME` — Existing model deployment name (e.g., gpt-4.1)
+   - Additional variables as needed: `GROUNDING_WITH_BING_CONNECTION_NAME`, `AZURE_AI_SEARCH_ENDPOINT`, `AZURE_SEARCH_KNOWLEDGE_BASE_NAME`
+
+   Notebook setup cells discover the root file from any folder in the repository.
+   Do not add a separate environment file here. Restart the kernel after changing
+   configuration. The Redis demo uses its local `redis://localhost:6379` setting.
 
 3. **Verify authentication** — Run `az account show` to confirm the CLI is signed in and targeting the correct subscription.
 
